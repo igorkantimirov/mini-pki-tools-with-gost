@@ -11,6 +11,7 @@ import requests
 from asn1crypto import ocsp as asn1_ocsp
 from asn1crypto import x509
 from asn1crypto.algos import DigestAlgorithm
+from asn1crypto.core import Sequence
 from asn1crypto.core import Void
 from asn1crypto.ocsp import CertId, Request, TBSRequest, OCSPRequest
 from asn1crypto.x509 import Certificate
@@ -31,9 +32,12 @@ def _build_cert_id_gost(
     """Собирает CertID по ГОСТ Р 34.11-2012."""
     oid = gost_hash_oid(digest_size)
     issuer_name_der = issuer_cert["tbs_certificate"]["subject"].dump()
-    issuer_key_der = issuer_cert["tbs_certificate"]["subject_public_key_info"].dump()
+    spki_der = issuer_cert["tbs_certificate"]["subject_public_key_info"].dump()
+    spki_seq = Sequence.load(spki_der)
+    spk_bitstring = spki_seq[1]
+    issuer_key_bytes = spk_bitstring.contents[1:]
     issuer_name_hash = _gost_hash(issuer_name_der, digest_size)
-    issuer_key_hash = _gost_hash(issuer_key_der, digest_size)
+    issuer_key_hash = _gost_hash(issuer_key_bytes, digest_size)
     serial = cert["tbs_certificate"]["serial_number"].native
 
     digest_algo = DigestAlgorithm()
