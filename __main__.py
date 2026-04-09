@@ -1,8 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-CLI: python -m TSPOCSPCLIENT ocsp <url> <cert.pem> <issuer.pem>
-     python -m TSPOCSPCLIENT tsp <url> <file>
-"""
 import argparse
 import os
 import sys

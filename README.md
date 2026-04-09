@@ -15,7 +15,7 @@ pip install -r requirements.txt
 CLI:
 
 ```bash
-python -m TSPOCSPCLIENT ocsp http://ocsp.example.com/ocsp.srf user.pem ca.pem
+python cli.py ocsp http://ocsp.example.com/ocsp.srf user.pem ca.pem
 ```
 
 ## TSP-клиент
@@ -36,7 +36,7 @@ if result.tst_info:
 CLI:
 
 ```bash
-python -m TSPOCSPCLIENT tsp http://tsa.example.com/tsp/tsp.srf document.pdf
+python cli.py tsp http://tsa.example.com/tsp/tsp.srf document.pdf
 ```
 
 Сохраняет цепочку в `./output`
