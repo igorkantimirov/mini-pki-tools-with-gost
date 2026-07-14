@@ -1,70 +1,71 @@
-# Различные crypto утилиты для тестов
+# Crypto tools for Testing
+
+A few simple Python scripts to help test Russian PKI stuff, through usage of GOST R 34.11-2012 algorithms.
 
 ## server.py
 
-HTTP API поверх OpenSSL с GOST engine для выдачи сертификатов по CSR, также предоставляет OCSP responder и TSA сервер.
-Сервер добавляет в выдаваемые сертификаты AIA (OCSP/caIssuers) и CRLDP, а для OCSP использует `index.txt`, чтобы возвращать статусы сертификатов.
+HTTP API that uses OpenSSL with the GOST engine. It acts as a local CA (Certificate Authority) for  tests.
 
-swagger: `http://localhost:8080/docs#/`
+It makes certificates from CSRs, runs an OCSP responder, and works as a TSA (Time Stamping Authority) server.
 
-также см. [server.md](server.md)
+It automatically adds AIA (OCSP/caIssuers) and CRLDP (CRL Distribution Points) to all new certificates.
 
-## CSR generator
+It uses an index.txt file to check and show the status of certificates for the OCSP responder.
 
-`generate_csr.py` генерирует PKCS#10 CSR под Windows через CryptoPro CSP с поддержкой ГОСТ.
-Позволяет собрать Subject из параметров (включая типовые российские OID’ы) и при необходимости сохранить CSR в base64 и/или PEM для отправки в УЦ или на `server.py`.
+Swagger UI: `http://localhost:8080/docs/`
 
-## ---
+See also: [server.md](LocalCA/README.md)
 
-Клиенты для запросов к **TSP** (RFC 3161) и **OCSP** с использованием **ГОСТ Р 34.11-2012** для хешей в протоколе.
+## Windows CSR Generator (generate_csr.py) with CryptoPro CSP and GOST
 
-### Установка
+A python script that creates Certificate Signing Requests (CSR) on Windows.
+It uses CryptoPro CSP to support GOST.
+Allows to build custom Subject DN with standard Russian OIDs (like INN, OGRN, SNILS).
+It saves the CSR as a Base64 or PEM string. You can copy-paste it to CA.
 
-```bash
-pip install -r requirements.txt
-```
+## TSP and OCSP Clients
 
-## OCSP-клиент
+Two cli tools to send TSP (RFC 3161) and OCSP requests with GOST hash algorithms.
 
-В запросе **CertID** поля `issuerNameHash` и `issuerKeyHash` считаются по **ГОСТ Р 34.11-2012** (256 или 512 бит), как принято в российской криптографии.
+Install deps: `pip install -r requirements.txt`
 
-CLI:
+### Check Certificate Status (OCSP Client)
 
-```bash
-python cli.py ocsp http://ocsp.example.com/ocsp.srf user.pem ca.pem
-```
+This tool calculates `issuerNameHash` and `issuerKeyHash` using GOST R 34.11-2012 (both 256-bit and 512-bit).
 
-## TSP-клиент
+`python cli.py ocsp http://ocsp.example.com/ocsp.srf user.pem ca.pem`
 
-В **TimeStampReq** поле **MessageImprint** формируется с алгоритмом **ГОСТ Р 34.11-2012** и хешем данных.
+### Get a Timestamp (TSP Client)
+
+This tool puts a GOST R 34.11-2012 data hash into the TimeStampReq message.
+
+Example
 
 ```python
 from TSPOCSPCLIENT import TSPClient
 
+# Connect to the TSA server
 client = TSPClient("http://tsa.example.com/tsp/tsp.srf")
 result = client.timestamp(b"payload", digest_size=256)
-print(result.status)  # granted, rejection, ...
+
+print(result.status)  # Example: 'granted' or 'rejection'
+
 if result.tst_info:
     print(result.tst_info["gen_time"].native)
+    # Check if the response is correct
     assert client.verify_imprint(b"payload", result, 256)
 ```
 
 CLI:
 
-```bash
-python cli.py tsp http://tsa.example.com/tsp/tsp.srf document.pdf
-```
+`python cli.py tsp http://tsa.example.com/tsp/tsp.srf document.pdf`
 
-Сохраняет цепочку в `./output`
+This command saves the response files into the ./output folder.
 
-### Ограничения
+This tool does not validate GOST signatures on OCSP responses or TimeStampTokens (CMS).
 
-- **Подпись OCSP-ответа** и **подпись TimeStampToken (CMS)** по ГОСТ не проверяются в этом пакете; для полной криптографической проверки используйте КриптоПро CSP или расширение с поддержкой ГОСТ CMS.
-
-
-### Пример TSP
+Public servers for example:
 
 `http://pki.tax.gov.ru/tsp/tsp.srf`
 
-`http://tax4.tensor.ru/tsp/tsp.srf`
-
+ `http://tax4.tensor.ru/tsp/tsp.srf`
