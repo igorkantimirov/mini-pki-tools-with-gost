@@ -47,9 +47,6 @@ mkdir -p /data/newcerts
 echo 01 > /data/ca.srl
 echo 01 > /data/crlnumber
 
-# OCSP подписывает тем же ключом (демо)
-# Важно для CryptoPro/AdES: OCSP должен быть подписан OCSP-responder сертификатом с EKU OCSPSigning,
-# а не CA-сертификатом.
 openssl genpkey -engine gost -algorithm gost2012_256 -pkeyopt paramset:1.2.643.2.2.35.1 -out ocsp.key.pem
 printf '%s\n' \
   'basicConstraints=critical,CA:FALSE' \
@@ -80,16 +77,12 @@ openssl req -new -key tsa.key.pem -engine gost -subj "/CN=DEMO TSA" -out tsa.csr
   -addext 'subjectKeyIdentifier=hash' \
   -addext 'crlDistributionPoints=URI:http://host.docker.internal:8080/crl.crl' \
   -addext 'authorityInfoAccess=OCSP;URI:http://host.docker.internal:8080/ocsp,caIssuers;URI:http://host.docker.internal:8080/ca.cer'
-# TSA сертификат должен быть выдан CA (иначе цепочка не строится в JCSP)
+
 openssl x509 -req -in tsa.csr.pem -CA ca.cert.pem -CAkey ca.key.pem -engine gost -days 3650 \
   -CAserial ca.srl -copy_extensions copyall -out tsa.cert.pem
 
-# Файл цепочки для TSP-ответов (чтобы клиенты могли построить цепочку без внешнего хранилища)
 cat /data/tsa.cert.pem /data/ca.cert.pem > /data/tsa.chain.pem
 
-# OCSP (openssl ocsp -index) отвечает только по index.txt.
-# Добавляем TSA-серт как "Valid", иначе JCSP/JCPRevCheck будет получать статус unknown
-# и валидатор упадёт с "Could not determine revocation status".
 python3 - <<'PY'
 import email.utils
 import re

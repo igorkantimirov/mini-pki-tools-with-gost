@@ -1,7 +1,3 @@
-# OpenSSL 3 + engine gost + FastAPI (server.py).
-# Запуск API: docker run -d -p 8080:8080 -v .../data:/data --name mini-pki-gost-env IMAGE
-# Инициализация УЦ в томе: docker exec mini-pki-gost-env sh /app/docker-init-ca.sh
-# Только shell + openssl: переопределить CMD, например: docker run ... IMAGE sleep infinity
 FROM ubuntu:24.04
 
 RUN apt-get update \

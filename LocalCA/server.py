@@ -51,7 +51,7 @@ OCSP_ISSUER = _env_path("OCSP_ISSUER", "/data/ca.cert.pem")
 TSA_CONFIG = _env_path("TSA_CONFIG", "/data/tsa/openssl-tsa.cnf")
 CA_CRL_CONFIG = _env_path("CA_CRL_CONFIG", "/data/openssl-ca.cnf")
 CA_CRL_NUMBER = _env_path("CA_CRL_NUMBER", "/data/crlnumber")
-# Дни по умолчанию для выданного сертификата
+
 CERT_DAYS = int(os.environ.get("CERT_DAYS", "365"))
 
 
@@ -113,7 +113,6 @@ def _parse_x509_meta(cert_pem: bytes) -> tuple[str, str, str]:
     serial = serial_m.group(1).strip().upper().replace(":", "")
     not_after = end_m.group(1).strip()
     subject = subj_m.group(1).strip()
-    # notAfter=Apr 19 05:28:33 2026 GMT
     dt = email.utils.parsedate_to_datetime(not_after)
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
@@ -128,9 +127,6 @@ def _append_index(cert_pem: bytes) -> None:
     serial, exp, subject = _parse_x509_meta(cert_pem)
     line = f"V\t{exp}\t\t{serial}\tunknown\t{subject}\n"
     INDEX.parent.mkdir(parents=True, exist_ok=True)
-    # OpenSSL `ocsp -index` строит "name index" по subject и может падать,
-    # если в index.txt несколько валидных (V) записей с одинаковым subject.
-    # В демо-режиме проще "снимать" предыдущую валидную запись с тем же subject.
     if INDEX.is_file():
         prev = INDEX.read_text(encoding="utf-8", errors="replace").splitlines(keepends=True)
     else:
@@ -140,12 +136,10 @@ def _append_index(cert_pem: bytes) -> None:
     for l in prev:
         parts = l.rstrip("\n").split("\t")
         if len(parts) < 6:
-            # не трогаем мусор/пустые строки — пусть остаются как есть
             out.append(l)
             continue
         status, _exp, _rev, _serial, _file, subj = parts[:6]
         if status == "V" and subj == subject:
-            # Помечаем как revoked "сейчас" (YYMMDDHHMMSSZ), чтобы уникальность subject восстановилась.
             now = datetime.now(timezone.utc).strftime("%y%m%d%H%M%SZ")
             parts[0] = "R"
             parts[2] = now
@@ -218,7 +212,6 @@ def health() -> dict:
 def get_ca_cer() -> Response:
     _require_file(CA_CERT, "CA_CERT")
     data = CA_CERT.read_bytes()
-    # Если CA_CERT уже DER (не PEM), просто отдаём как .cer
     if not data.startswith(b"-----BEGIN"):
         return Response(
             content=data,
@@ -226,7 +219,6 @@ def get_ca_cer() -> Response:
             headers={"Content-Disposition": "attachment; filename=ca.cer"},
         )
 
-    # CA_CERT в PEM; конвертим в DER
     p = _run_openssl(["x509", "-in", str(CA_CERT), "-inform", "PEM", "-outform", "DER"])
     if p.returncode != 0 or not p.stdout:
         raise HTTPException(
@@ -242,10 +234,6 @@ def get_ca_cer() -> Response:
 
 @app.get("/crl.crl")
 def get_crl() -> Response:
-    """
-    Отдаёт CRL (DER), чтобы клиенты (в т.ч. JCPRevCheck) могли проверить отзыв по CRLDP.
-    CRL генерируется из INDEX через `openssl ca -gencrl`.
-    """
     _require_file(CA_CRL_CONFIG, "CA_CRL_CONFIG")
     _require_file(CA_CERT, "CA_CERT")
     _require_file(CA_KEY, "CA_KEY")
@@ -278,10 +266,7 @@ async def sign_csr(
 ) -> Response:
     _require_file(CA_CERT, "CA_CERT")
     _require_file(CA_KEY, "CA_KEY")
-    _ = request  # swagger-only form endpoint; raw body не используем
-    # В application/x-www-form-urlencoded символ '+' часто превращается в пробел.
-    # Чтобы curl -d 'csr_b64=...' работал даже если '+' не был percent-encoded,
-    # восстанавливаем пробелы обратно в '+' перед base64 decode.
+    _ = request
     raw = (csr_b64 or "").strip().replace(" ", "+")
     s = re.sub(r"\s+", "", raw)
     if not s:
@@ -300,7 +285,6 @@ async def sign_csr(
 
         csr_path.write_bytes(csr_der)
         ocsp = (ocsp_url or os.environ.get("OCSP_URL") or _default_public_url(request, "/ocsp")).strip()
-        # caIssuers по умолчанию указывает на /ca.cer (может отдавать TRUST_ROOT_CERT, если он лежит в /data)
         ca_issuers = (ca_issuers_url or os.environ.get("CA_ISSUERS_URL") or _default_public_url(request, "/ca.cer")).strip()
         crl = (crl_url or os.environ.get("CRL_URL") or _default_public_url(request, "/crl.crl")).strip()
         # OpenSSL config syntax: authorityInfoAccess = OCSP;URI:...,caIssuers;URI:...
@@ -311,7 +295,6 @@ async def sign_csr(
                 aia_parts.append(f"caIssuers;URI:{ca_issuers}")
             ext_text += "authorityInfoAccess=" + ",".join(aia_parts) + "\n"
         if crl:
-            # RFC 5280 CRL Distribution Points
             ext_text += f"crlDistributionPoints=URI:{crl}\n"
         ext_path.write_text(ext_text, encoding="utf-8")
 
@@ -355,7 +338,6 @@ async def sign_csr(
 
         leaf_der = leaf_der_path.read_bytes()
 
-        # Для index.txt (OCSP) парсим метаданные из PEM
         conv = _run_openssl(["x509", "-inform", "DER", "-outform", "PEM"], stdin=leaf_der)
         if conv.returncode != 0:
             raise HTTPException(500, detail=conv.stderr.decode("utf-8", errors="replace")[:2000])

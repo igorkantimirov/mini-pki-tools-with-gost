@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 Клиент OCSP с поддержкой ГОСТ Р 34.11-2012 для хешей в CertID.
+
+python cli.py ocsp http://ocsp.example.com/ocsp.srf user.pem ca.pem
 """
 
 from __future__ import annotations

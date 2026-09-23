@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 """
 Клиент TSP (RFC 3161) с поддержкой ГОСТ Р 34.11-2012 в MessageImprint.
+
+python cli.py tsp http://tsa.example.com/tsp/tsp.srf document.pdf
+
+Example public servers: `http://pki.tax.gov.ru/tsp/tsp.srf`, `http://tax4.tensor.ru/tsp/tsp.srf`
 """
 
 from __future__ import annotations
@@ -131,7 +135,6 @@ class TSPClient:
     ) -> bool:
         """
         Проверяет, что в TSTInfo message_imprint совпадает с хешем данных (ГОСТ).
-        Не проверяет подпись токена (для этого нужен КриптоПро / отдельная CMS-верификация).
         """
         if result.tst_info is None:
             return False

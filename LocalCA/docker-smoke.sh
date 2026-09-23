@@ -31,7 +31,6 @@ req = urllib.request.Request('http://127.0.0.1:8080/sign-csr', data=body, method
     headers={'Content-Type': f'multipart/form-data; boundary={boundary}'})
 open('/data/api-cert.cer','wb').write(urllib.request.urlopen(req).read())
 "
-# Для OCSP нужен leaf cert в PEM — конвертим из ответа API (.cer DER)
 openssl x509 -inform DER -in /data/api-cert.cer -outform PEM -out /data/api-cert.pem
 openssl ocsp -issuer /data/ca.cert.pem -cert /data/api-cert.pem -reqout /data/ocspreq.der
 python3 -c "
@@ -51,7 +50,6 @@ req = urllib.request.Request('http://127.0.0.1:8080/tsp', data=b, method='POST',
 open('/data/r.tsr', 'wb').write(urllib.request.urlopen(req).read())
 "
 
-# CRL должен отдаваться и парситься
 python3 -c "
 import urllib.request
 open('/data/ca.crl', 'wb').write(urllib.request.urlopen('http://127.0.0.1:8080/crl.crl').read())
