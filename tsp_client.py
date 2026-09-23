@@ -155,12 +155,14 @@ def _extract_tst_info(content_info: ContentInfo) -> typing.Any:
     if not isinstance(signed, SignedData):
         signed = SignedData.load(raw_content.native)
     encap = signed["encap_content_info"]
-    econtent = encap["content"].native
-    if econtent is None:
-        raise TSPError("Пустой eContent в TimeStampToken")
     from asn1crypto.tsp import TSTInfo
 
-    return TSTInfo.load(econtent)
+    econtent = encap["content"]
+    if isinstance(econtent.parsed, TSTInfo):
+        return econtent.parsed
+    if econtent.native is None:
+        raise TSPError("Пустой eContent в TimeStampToken")
+    return TSTInfo.load(econtent.native)
 
 
 class TSPResult(typing.NamedTuple):
